@@ -1,0 +1,161 @@
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analyse ASFIM</title>
+  <link rel="stylesheet" href="{% static 'web/css/dashboard.css' %}?v=4">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">INTELLIGENCE MARCHE OPCVM</div>
+      <h1>Analyse ASFIM</h1>
+    </div>
+    <nav>
+      <a href="/api/funds/">API</a>
+      <a href="/admin/">Administration</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="workspace-nav">
+      <a href="#market-section">Marché</a>
+      <a href="#ranking-section">Classement</a>
+      <a href="#compare-section">Comparateur</a>
+      <a href="#flows-section">Flux S-R</a>
+      <a href="#explorer-section">Explorateur</a>
+    </section>
+
+    <section class="filters" aria-label="Filtres globaux">
+      <label>Début <input id="start-filter" type="date"></label>
+      <label>Fin <input id="end-filter" type="date"></label>
+      <label>Période
+        <select id="range-shortcut">
+          <option value="1y">1A</option>
+          <option value="7d">7j</option>
+          <option value="1m">1M</option>
+          <option value="3m">3M</option>
+          <option value="6m">6M</option>
+          <option value="ytd">YTD</option>
+          <option value="all">Depuis création</option>
+          <option value="custom">Personnalisé</option>
+        </select>
+      </label>
+      <label>Classification <select id="classification-filter"><option value="">Toutes</option></select></label>
+      <label>Souscripteurs <select id="subscriber-filter"><option value="">Tous</option></select></label>
+      <label>Société de gestion <select id="company-filter"><option value="">Toutes</option></select></label>
+      <button id="refresh">Actualiser</button>
+    </section>
+
+    <section class="metric-strip">
+      <div><span>Actif net</span><strong id="total-aum" class="loading">Chargement</strong><em id="aum-change"></em></div>
+      <div><span>Fonds actifs</span><strong id="fund-count" class="loading">Chargement</strong><em id="company-count"></em></div>
+      <div><span>HHI</span><strong id="hhi" class="loading">Chargement</strong><em id="leader"></em></div>
+      <div><span>Part Top 3</span><strong id="top3" class="loading">Chargement</strong><em id="top5"></em></div>
+    </section>
+
+    <section id="market-section" class="grid two">
+      <div id="ranking-section" class="panel">
+        <div class="panel-head">
+          <h2>Parts de marché</h2>
+          <select id="treemap-mode">
+            <option value="legal">Nature juridique</option>
+            <option value="company">Société de gestion</option>
+            <option value="classification">Classification</option>
+          </select>
+        </div>
+        <div id="market-chart" class="chart"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Evolution du marché</h2>
+          <span id="market-asof"></span>
+        </div>
+        <div id="market-series" class="chart"></div>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="panel">
+        <div class="panel-head controls-head">
+          <h2>Classement par catégorie</h2>
+          <div class="inline-controls">
+            <select id="ranking-classification"><option value="">Toutes</option></select>
+            <select id="ranking-metric">
+              <option value="sr_effect">Effet S-R</option>
+              <option value="performance_effect">Effet perf.</option>
+              <option value="perf_1y">Perf. 1 an</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="ranking-table"></table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Watchlist concurrentielle</h2>
+          <select id="scenario-filter">
+            <option value="balanced">Equilibré</option>
+            <option value="growth">Croissance</option>
+            <option value="defensive">Défensif</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table id="watchlist-table"></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="compare-section" class="panel">
+      <div class="panel-head controls-head">
+        <h2>Comparateur OPCVM</h2>
+        <div class="fund-search">
+          <input id="fund-search" list="fund-options" type="search" placeholder="Rechercher nom ou ISIN">
+          <datalist id="fund-options"></datalist>
+          <button id="add-fund" type="button">Ajouter</button>
+          <select id="nav-base">
+            <option value="true">Base 100</option>
+            <option value="false">Valeur brute</option>
+          </select>
+        </div>
+      </div>
+      <div id="selected-funds" class="chips"></div>
+      <div id="nav-chart" class="chart"></div>
+    </section>
+
+    <section id="flows-section" class="grid two">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Effet S-R / Effet perf. dans le temps</h2>
+          <span id="sr-scope"></span>
+        </div>
+        <div id="sr-timeseries" class="chart"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Détail dernière période</h2>
+          <span>Période sélectionnée</span>
+        </div>
+        <div class="table-wrap">
+          <table id="sr-table"></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="explorer-section" class="panel">
+      <div class="panel-head">
+        <h2>Explorateur OPCVM</h2>
+        <span>Dernier snapshot valide</span>
+      </div>
+      <div class="table-wrap">
+        <table id="fund-table"></table>
+      </div>
+    </section>
+  </main>
+  <script src="{% static 'web/js/dashboard.js' %}?v=4"></script>
+</body>
+</html>

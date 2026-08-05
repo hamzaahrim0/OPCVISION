@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+db.sqlite3
+asfim.db
+asfim_xlsx/*.xlsx
+staticfiles/
+.env
