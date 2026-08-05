@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from django.db.models import Max, Min
+from django.db.models import Max, Min, Q
 from django.http import HttpResponse
 from django.core.cache import cache
 from rest_framework import generics
@@ -51,7 +51,12 @@ class FundListView(generics.ListAPIView):
         if params.get("subscriber_type"):
             qs = qs.filter(subscriber_type=params["subscriber_type"])
         if params.get("search"):
-            qs = qs.filter(name__icontains=params["search"]) | qs.filter(isin__icontains=params["search"])
+            search_term = params["search"].strip()
+            if " - " in search_term:
+                isin_part, _, name_part = search_term.partition(" - ")
+                qs = qs.filter(Q(isin__icontains=isin_part.strip()) | Q(name__icontains=name_part.strip()))
+            else:
+                qs = qs.filter(Q(name__icontains=search_term) | Q(isin__icontains=search_term))
         return qs
 
 

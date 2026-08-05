@@ -294,27 +294,30 @@ async function addFund() {
   if (!value) return;
 
   const parts = value.split(" - ");
-  const cleanIsin = parts[0].trim().toLowerCase();
+  const cleanIsin = parts[0].trim();
+  const cleanName = parts.length > 1 ? parts[1].trim() : value;
   const cleanVal = value.toLowerCase();
 
   let fund = fundOptions.find((item) =>
-    item.isin.toLowerCase() === cleanIsin ||
+    item.isin.toLowerCase() === cleanIsin.toLowerCase() ||
     item.isin.toLowerCase() === cleanVal ||
     item.name.toLowerCase() === cleanVal ||
+    item.name.toLowerCase() === cleanName.toLowerCase() ||
     item.name.toLowerCase().includes(cleanVal) ||
     cleanVal.includes(item.isin.toLowerCase())
   );
 
   if (!fund) {
+    const query = cleanIsin || value;
     try {
-      const res = await fetch(`/api/funds/?search=${encodeURIComponent(value)}`);
+      const res = await fetch(`/api/funds/?search=${encodeURIComponent(query)}`);
       if (res.ok) {
         const data = await res.json();
         const list = data.results || data;
         if (Array.isArray(list) && list.length > 0) {
           fund = list.find((item) =>
-            item.isin.toLowerCase() === cleanIsin ||
-            item.name.toLowerCase().includes(cleanVal)
+            item.isin.toLowerCase() === cleanIsin.toLowerCase() ||
+            item.name.toLowerCase() === cleanName.toLowerCase()
           ) || list[0];
         }
       }
