@@ -253,21 +253,36 @@ async function loadRanking() {
   ], rows);
 }
 
+function navParams(extra = {}) {
+  const p = new URLSearchParams();
+  const start = document.querySelector("#start-filter").value;
+  const end = document.querySelector("#end-filter").value;
+  if (start) p.set("start", start);
+  if (end) p.set("end", end);
+  Object.entries(extra).forEach(([key, value]) => {
+    if (value !== "" && value != null) p.set(key, value);
+  });
+  return p;
+}
+
 async function searchFunds() {
   const query = document.querySelector("#fund-search").value.trim();
   const url = query.length >= 2
     ? `/api/funds/?search=${encodeURIComponent(query)}`
     : `/api/funds/`;
   try {
-    const data = await getJSON(url, "fund-search");
-    fundOptions = data.results || data;
-    const list = document.querySelector("#fund-options");
-    list.innerHTML = "";
-    fundOptions.slice(0, 30).forEach((fund) => {
-      const opt = document.createElement("option");
-      opt.value = `${fund.isin} - ${fund.name}`;
-      list.appendChild(opt);
-    });
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      fundOptions = data.results || data;
+      const list = document.querySelector("#fund-options");
+      list.innerHTML = "";
+      fundOptions.slice(0, 30).forEach((fund) => {
+        const opt = document.createElement("option");
+        opt.value = `${fund.isin} - ${fund.name}`;
+        list.appendChild(opt);
+      });
+    }
   } catch (e) {
     console.warn("searchFunds error:", e);
   }
@@ -278,26 +293,33 @@ async function addFund() {
   const value = inputEl.value.trim();
   if (!value) return;
 
-  const isin = value.split(" - ")[0].trim();
+  const parts = value.split(" - ");
+  const cleanIsin = parts[0].trim().toLowerCase();
+  const cleanVal = value.toLowerCase();
 
   let fund = fundOptions.find((item) =>
-    item.isin.toLowerCase() === isin.toLowerCase() ||
-    item.isin.toLowerCase() === value.toLowerCase() ||
-    item.name.toLowerCase() === value.toLowerCase()
+    item.isin.toLowerCase() === cleanIsin ||
+    item.isin.toLowerCase() === cleanVal ||
+    item.name.toLowerCase() === cleanVal ||
+    item.name.toLowerCase().includes(cleanVal) ||
+    cleanVal.includes(item.isin.toLowerCase())
   );
 
   if (!fund) {
     try {
-      const data = await getJSON(`/api/funds/?search=${encodeURIComponent(value)}`, "add-fund");
-      const list = data.results || data;
-      if (Array.isArray(list) && list.length > 0) {
-        fund = list.find((item) =>
-          item.isin.toLowerCase() === isin.toLowerCase() ||
-          item.name.toLowerCase() === value.toLowerCase()
-        ) || list[0];
+      const res = await fetch(`/api/funds/?search=${encodeURIComponent(value)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.results || data;
+        if (Array.isArray(list) && list.length > 0) {
+          fund = list.find((item) =>
+            item.isin.toLowerCase() === cleanIsin ||
+            item.name.toLowerCase().includes(cleanVal)
+          ) || list[0];
+        }
       }
     } catch (e) {
-      console.warn("addFund fetch error:", e);
+      console.warn("addFund direct fetch error:", e);
     }
   }
 
@@ -355,7 +377,7 @@ async function loadNavSeries() {
   }
   const isins = selectedFunds.map((fund) => fund.isin).join(",");
   const base100 = document.querySelector("#nav-base").value;
-  const data = await getJSON(`/api/nav-series/?${params({ isins, base100 })}`, "nav-series");
+  const data = await getJSON(`/api/nav-series/?${navParams({ isins, base100 })}`, "nav-series");
 
   const validSeries = (data.series || []).filter((s) => s.points && s.points.length > 0);
   if (!validSeries.length) {
