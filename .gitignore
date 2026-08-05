@@ -5,3 +5,5 @@ asfim.db
 asfim_xlsx/*.xlsx
 staticfiles/
 .env
+.venv/
+venv/

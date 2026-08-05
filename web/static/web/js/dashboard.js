@@ -255,25 +255,69 @@ async function loadRanking() {
 
 async function searchFunds() {
   const query = document.querySelector("#fund-search").value.trim();
-  if (query.length < 2) return;
-  const data = await getJSON(`/api/funds/?search=${encodeURIComponent(query)}`, "fund-search");
-  fundOptions = data.results || data;
-  const list = document.querySelector("#fund-options");
-  list.innerHTML = "";
-  fundOptions.slice(0, 20).forEach((fund) => {
-    const opt = document.createElement("option");
-    opt.value = `${fund.isin} - ${fund.name}`;
-    list.appendChild(opt);
-  });
+  const url = query.length >= 2
+    ? `/api/funds/?search=${encodeURIComponent(query)}`
+    : `/api/funds/`;
+  try {
+    const data = await getJSON(url, "fund-search");
+    fundOptions = data.results || data;
+    const list = document.querySelector("#fund-options");
+    list.innerHTML = "";
+    fundOptions.slice(0, 30).forEach((fund) => {
+      const opt = document.createElement("option");
+      opt.value = `${fund.isin} - ${fund.name}`;
+      list.appendChild(opt);
+    });
+  } catch (e) {
+    console.warn("searchFunds error:", e);
+  }
 }
 
-function addFund() {
-  const value = document.querySelector("#fund-search").value;
+async function addFund() {
+  const inputEl = document.querySelector("#fund-search");
+  const value = inputEl.value.trim();
+  if (!value) return;
+
   const isin = value.split(" - ")[0].trim();
-  const fund = fundOptions.find((item) => item.isin === isin);
-  if (!fund || selectedFunds.some((item) => item.isin === isin) || selectedFunds.length >= 10) return;
+
+  let fund = fundOptions.find((item) =>
+    item.isin.toLowerCase() === isin.toLowerCase() ||
+    item.isin.toLowerCase() === value.toLowerCase() ||
+    item.name.toLowerCase() === value.toLowerCase()
+  );
+
+  if (!fund) {
+    try {
+      const data = await getJSON(`/api/funds/?search=${encodeURIComponent(value)}`, "add-fund");
+      const list = data.results || data;
+      if (Array.isArray(list) && list.length > 0) {
+        fund = list.find((item) =>
+          item.isin.toLowerCase() === isin.toLowerCase() ||
+          item.name.toLowerCase() === value.toLowerCase()
+        ) || list[0];
+      }
+    } catch (e) {
+      console.warn("addFund fetch error:", e);
+    }
+  }
+
+  if (!fund) {
+    alert(`Aucun OPCVM trouvé pour "${value}".`);
+    return;
+  }
+
+  if (selectedFunds.some((item) => item.isin === fund.isin)) {
+    inputEl.value = "";
+    return;
+  }
+
+  if (selectedFunds.length >= 10) {
+    alert("Vous ne pouvez comparer que 10 OPCVM au maximum.");
+    return;
+  }
+
   selectedFunds.push(fund);
-  document.querySelector("#fund-search").value = "";
+  inputEl.value = "";
   renderSelectedFunds();
   loadNavSeries().catch((err) => renderError("#nav-chart", err.message));
   loadSrTimeseries().catch((err) => renderError("#sr-timeseries", err.message));
@@ -281,7 +325,18 @@ function addFund() {
 
 function renderSelectedFunds() {
   const target = document.querySelector("#selected-funds");
-  target.innerHTML = selectedFunds.map((fund) => `<button type="button" data-isin="${fund.isin}">${fund.isin}</button>`).join("");
+  if (!selectedFunds.length) {
+    target.innerHTML = "";
+    return;
+  }
+  target.innerHTML = selectedFunds.map((fund) => `
+    <button type="button" class="fund-chip" data-isin="${fund.isin}" title="${fund.name}">
+      <span class="chip-name">${fund.name}</span>
+      <span class="chip-isin">(${fund.isin})</span>
+      <span class="chip-remove" aria-label="Supprimer">&times;</span>
+    </button>
+  `).join("");
+
   target.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
       selectedFunds = selectedFunds.filter((fund) => fund.isin !== button.dataset.isin);
@@ -301,13 +356,30 @@ async function loadNavSeries() {
   const isins = selectedFunds.map((fund) => fund.isin).join(",");
   const base100 = document.querySelector("#nav-base").value;
   const data = await getJSON(`/api/nav-series/?${params({ isins, base100 })}`, "nav-series");
-  Plotly.newPlot("nav-chart", data.series.map((serie) => ({
+
+  const validSeries = (data.series || []).filter((s) => s.points && s.points.length > 0);
+  if (!validSeries.length) {
+    renderError("#nav-chart", "Aucun historique de valeur liquidative disponible pour les fonds et la période sélectionnée.");
+    return;
+  }
+
+  const yTitle = data.base100 ? "Indice (Base 100)" : "Valeur Liquidative (MAD)";
+
+  Plotly.newPlot("nav-chart", validSeries.map((serie) => ({
     type: "scatter",
     mode: "lines",
     name: serie.fund_name,
     x: serie.points.map((point) => point.date),
     y: serie.points.map((point) => point.value),
-  })), plotLayout(), { displayModeBar: false, responsive: true });
+    hovertemplate: `<b>%{fullData.name}</b><br>Date: %{x}<br>Valeur: %{y:,.2f}<extra></extra>`,
+  })), plotLayout({
+    yaxis: {
+      title: { text: yTitle, font: { size: 11, color: "#8b98a5" } },
+      gridcolor: "#303a45",
+      color: "#8b98a5",
+      automargin: true,
+    },
+  }), { displayModeBar: false, responsive: true });
 }
 
 async function loadSrTimeseries() {
@@ -419,9 +491,19 @@ document.querySelector("#range-shortcut").addEventListener("change", () => {
   document.querySelector(id).addEventListener("change", debounceRefresh);
 });
 document.querySelector("#treemap-mode").addEventListener("change", renderTreemap);
-document.querySelector("#fund-search").addEventListener("input", () => {
+const fundSearchInput = document.querySelector("#fund-search");
+fundSearchInput.addEventListener("input", () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(searchFunds, 300);
+  searchTimer = setTimeout(searchFunds, 250);
+});
+fundSearchInput.addEventListener("focus", () => {
+  if (!fundOptions.length) searchFunds();
+});
+fundSearchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    addFund();
+  }
 });
 document.querySelector("#add-fund").addEventListener("click", addFund);
 

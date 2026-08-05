@@ -207,17 +207,51 @@ button {
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 10px 0;
+  gap: 8px;
+  padding: 8px 10px 4px;
 }
 
-.chips button {
+.chips button.fund-chip {
   width: auto;
-  min-height: 26px;
-  padding: 4px 8px;
-  background: #223047;
-  border-color: #3b4a61;
-  color: #cbd5df;
+  min-height: 28px;
+  padding: 4px 10px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chips button.fund-chip:hover {
+  background: #334155;
+  border-color: #475569;
+  color: #ffffff;
+}
+
+.chips button.fund-chip .chip-name {
+  font-weight: 500;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chips button.fund-chip .chip-isin {
+  font-size: 10px;
+  color: #94a3b8;
+  font-family: var(--mono);
+}
+
+.chips button.fund-chip .chip-remove {
+  font-size: 14px;
+  font-weight: bold;
+  color: #ef4444;
+  margin-left: 4px;
 }
 
 .chart {
